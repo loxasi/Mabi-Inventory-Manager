@@ -11,6 +11,7 @@ using System.Windows;
 using System.Runtime.InteropServices;
 using System.Windows.Threading;
 using System.Windows.Interop;
+using System.IO;
 
 namespace Mabi_Inventory_Manager
 {
@@ -20,9 +21,10 @@ namespace Mabi_Inventory_Manager
         public IntPtr AlissaHandle { get; private set; }
         public System.IO.StreamWriter packet_f;
 
-        private const string packets_path = @"D:\Documents\Mabi\packets.txt";
-        private const string char_packet_path = @"D:\Documents\Mabi\char_packet.txt";
-        private const string inventory_path = @"D:\Documents\Mabi\inventory.csv";
+        private const string packets_path = @"packets.txt";
+        private const string char_packet_path = @"char_packet.txt";
+        private const string inventory_path = @"inventory.csv";
+        private const string inventorysimp_path = @"inventorysimp.csv";
 
         public mainFrm()
         {
@@ -124,30 +126,35 @@ namespace Mabi_Inventory_Manager
         }
 
 
-        private void handleChar(Packet packet) {
-            using (System.IO.StreamWriter inventory_f = new System.IO.StreamWriter(inventory_path))
+        private void handleChar(Packet packet)
+        {
+            Console.WriteLine("handleChar(): entering");
+            var packetData = packet.Build();
             using (System.IO.StreamWriter char_packet_f = new System.IO.StreamWriter(char_packet_path))
-            {
-                var packetData = packet.Build();
                 char_packet_f.WriteLine(BitConverter.ToString(packetData).Replace("-", " "));
-                // start of inventory data
-                // size of player's inventory 6x10
-                var invSize = new byte[] { 0x03, 0x00, 0x00, 0x00, 0x06, 0x03, 0x00, 0x00, 0x00, 0x0A };
-                // locate start of inventory data
-                var current = findSequence(packetData, invSize);
-                current += 10;
-                // get number of items
-                var itemNumBin = Parser.GetNext(packetData, ref current);
-                int itemNum = Parser.ConvertInt(itemNumBin);
 
+            // start of inventory data
+            // size of player's inventory 6x10
+            var invSize = new byte[] { 0x03, 0x00, 0x00, 0x00, 0x06, 0x03, 0x00, 0x00, 0x00, 0x0A };
+            // locate start of inventory data
+            var current = findSequence(packetData, invSize);
+            current += 10;
+            // get number of items
+            var itemNumBin = Parser.GetNext(packetData, ref current);
+            int itemNum = Parser.ConvertInt(itemNumBin);
+
+            using (System.IO.StreamWriter inventory_f = new System.IO.StreamWriter(inventory_path))
+            using (System.IO.StreamWriter inventorysimp_f = new System.IO.StreamWriter(inventorysimp_path))
+            {
                 // print csv header
                 Item header = new Item();
                 inventory_f.WriteLine(header.GetHeader());
+                inventorysimp_f.WriteLine("Pocket,Name,Amount,Durability");
 
                 // loop through items
                 for (var i = 0; i < itemNum; i++)
                 {
-                    var currBin = packetData.Skip(current).ToArray();
+                    Console.WriteLine("Processing item {0} of {1}...", i, itemNum);
                     Item newItem = new Item();
                     var entityIdBin = Parser.GetNext(packetData, ref current);
                     newItem.EntityID = Parser.ConvertLong(entityIdBin);
@@ -207,8 +214,33 @@ namespace Mabi_Inventory_Manager
                     newItem.ItemName = itemDBInfo.Item1;
                     // write item data
                     inventory_f.WriteLine(newItem);
+                    inventorysimp_f.WriteLine("{0},{1},{2},{3}", newItem.Pocket, newItem.ItemName, newItem.Amount, ((float)newItem.Durability) / 1000);
                 }
             }
+        }
+
+        private static byte[] StringToByteArray(String hex)
+        {
+            int NumberChars = hex.Length;
+            byte[] bytes = new byte[NumberChars / 2];
+            for (int i = 0; i < NumberChars; i += 2)
+                bytes[i / 2] = Convert.ToByte(hex.Substring(i, 2), 16);
+            return bytes;
+        }
+
+        private void fromFileBtn_Click(object sender, EventArgs e)
+        {
+            Console.WriteLine("Processing character info packet from previously saved file.");
+            byte[] bytes = StringToByteArray(File.ReadAllText(char_packet_path).Replace(" ", "").Replace("\r\n", ""));
+            Packet p = new Packet(bytes, 0);
+            handleChar(p);
+        }
+
+        private void chooseDirBtn_Click(object sender, EventArgs e)
+        {
+            FolderBrowserDialog d = new FolderBrowserDialog();
+            if(d.ShowDialog() == DialogResult.OK)
+                Directory.SetCurrentDirectory(d.SelectedPath);
         }
     }
 }

@@ -10,8 +10,8 @@ namespace Mabi_Inventory_Manager
     static class ItemDB
     {
 
-        private const string itemdb = @"D:\Documents\Mabi\pack\data\db\itemdb.xml";
-        private const string itemnames = @"D:\Documents\Mabi\pack\data\xml\itemdb.english.txt";
+        private const string itemdb = @"itemdb.xml";
+        private const string itemnames = @"itemdb.english.txt";
 
         /// <summary>
         /// Returns the item name and category info for an item based on its ID. (itemdb.xml)
